@@ -9,6 +9,8 @@ Open-source ERP for 3D print farms. Manage inventory, production, sales, purchas
 
 **[Documentation](https://blb3dprinting.github.io/filaops/)** | **[Release Notes](https://github.com/BLB3DPrinting/filaops/releases/latest)**
 
+Para o deploy self-hosted da Estudio FR3D no Coolify, consulte [docs/DEPLOYMENT_FR3D.md](docs/DEPLOYMENT_FR3D.md) e use `docker-compose.coolify.yml`.
+
 ## Quick Start (Docker)
 
 ```bash

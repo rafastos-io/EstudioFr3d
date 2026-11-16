@@ -1,0 +1,98 @@
+# Coolify production deployment for Estudio FR3D.
+# Keep this file separate from the upstream local-development compose file.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-filaops}
+      POSTGRES_USER: ${DB_USER:-filaops}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Configure_DB_PASSWORD_in_Coolify}
+    volumes:
+      - filaopsfr3d_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["bash", "scripts/docker-migrate.sh"]
+    restart: "no"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-filaops}
+      DB_USER: ${DB_USER:-filaops}
+      DB_PASSWORD: ${DB_PASSWORD:?Configure_DB_PASSWORD_in_Coolify}
+      SECRET_KEY: ${SECRET_KEY:?Configure_SECRET_KEY_in_Coolify}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      FILAOPS_LICENSE_KEY: ${FILAOPS_LICENSE_KEY:-}
+      DATABASE_URL: "postgresql+psycopg://${DB_USER:-filaops}:${DB_PASSWORD:?Configure_DB_PASSWORD_in_Coolify}@db:5432/${DB_NAME:-filaops}"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-filaops}
+      DB_USER: ${DB_USER:-filaops}
+      DB_PASSWORD: ${DB_PASSWORD:?Configure_DB_PASSWORD_in_Coolify}
+      SECRET_KEY: ${SECRET_KEY:?Configure_SECRET_KEY_in_Coolify}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://fr3d.rafastos.com.br}
+      FRONTEND_URL: ${FRONTEND_URL:-https://fr3d.rafastos.com.br}
+      FILAOPS_VERSION: v4.4.0
+      ENABLE_PUBLIC_QUOTER: ${ENABLE_PUBLIC_QUOTER:-false}
+      FILAOPS_LICENSE_KEY: ${FILAOPS_LICENSE_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@example.com}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Estudio FR3D}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      ADMIN_APPROVAL_EMAIL: ${ADMIN_APPROVAL_EMAIL:-admin@example.com}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - filaopsfr3d_uploads:/app/uploads
+      - filaopsfr3d_config:/var/lib/filaops/config
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""
+    restart: unless-stopped
+    expose:
+      - "8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  filaopsfr3d_pgdata:
+  filaopsfr3d_config:
+  filaopsfr3d_uploads:
